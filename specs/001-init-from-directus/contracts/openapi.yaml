@@ -1,0 +1,471 @@
+openapi: 3.1.0
+info:
+  title: undrlla-core Storefront API (Tier-A shared contract)
+  version: 1.0.0
+  description: >
+    Versioned storefront + Telegram Mini App shared surface for undrlla-core
+    (FR-014, SC-006). Authoritative for client-visible storefront workflows;
+    Directus generated REST/GraphQL remains the contract for admin/internal collection CRUD.
+    Backed by Directus 12.x REST; policy row-filters/FLS enforce access (FR-003/FR-004).
+servers:
+  - url: "{publicBaseUrl}"
+    variables:
+      publicBaseUrl:
+        default: https://example-marketplace.undrlla.app
+security:
+  - directusAuth: []
+  - anonCart: []
+tags:
+  - name: catalog
+  - name: cart
+  - name: checkout
+  - name: bookings
+  - name: refunds
+  - name: tax
+  - name: entitlements
+  - name: notifications
+  - name: vendor
+paths:
+  /items/products:
+    get:
+      tags: [catalog]
+      summary: Browse catalog (public read, FLS-stripped)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+        - { name: filter, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+  /items/products/{id}:
+    get:
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Product" }
+        "404": { description: Not found }
+  /store/cart:
+    get:
+      tags: [cart]
+      summary: Get the current customer or anonymous cart (customer-scoped, cross-tenant per FR-031)
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+    post:
+      tags: [cart]
+      summary: Add or update a cart item (may span vendors)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CartItemInput" }
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+  /store/checkout:
+    post:
+      tags: [checkout]
+      summary: Split multi-vendor cart into one Order + PaymentAttempt per vendor (FR-024)
+      description: >
+        Checkout is per-vendor atomic after fan-out. If one vendor order fails payment,
+        expires, or is refunded, successful sibling orders in the same checkout_group_id
+        remain committed and the failed vendor's inventory reservation is released.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckoutRequest" }
+      responses:
+        "201":
+          description: Checkout group created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutGroup" }
+        "409": { description: Inventory reservation conflict / delivery zone unavailable }
+  /store/checkout/{checkout_group_id}:
+    get:
+      tags: [checkout]
+      summary: Read mixed checkout-group status across vendor orders
+      parameters:
+        - { name: checkout_group_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Checkout group status visible to the owning customer or guest token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutGroup" }
+  /store/bookings:
+    post:
+      tags: [bookings]
+      summary: Request an available service slot (creates pending booking, FR-019)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingRequest" }
+      responses:
+        "201":
+          description: Pending booking
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Booking" }
+  /store/bookings/{id}/transition:
+    post:
+      tags: [bookings]
+      summary: Transition a booking with actor-specific authorization
+      description: |
+        Provider/Admin may `confirm` or `reject`. Customer, Provider, or Admin may
+        `cancel` or `reschedule` when they own or provide the booking. Confirmation
+        atomically captures prepaid payment, reserves the slot, and rejects overlapping pending requests.
+      x-transition-roles:
+        confirm: [provider, admin]
+        reject: [provider, admin]
+        cancel: [customer, provider, admin]
+        reschedule: [customer, provider, admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingTransition" }
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Booking" }
+        "409": { description: Slot already reserved by a confirmed booking }
+        "403": { description: Actor is not allowed to perform this transition }
+  /store/refunds:
+    post:
+      tags: [refunds]
+      summary: Customer creates a refund request for a paid order (FR-020)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, requested_amount]
+              properties:
+                order_id: { type: string }
+                requested_amount: { type: number }
+                reason: { type: string }
+      responses:
+        "201":
+          description: Refund request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefundRequest" }
+  /store/refunds/{id}/decision:
+    post:
+      tags: [refunds]
+      summary: Vendor/Admin approve or reject a refund request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefundDecision" }
+      responses:
+        "200":
+          description: Refund request updated after provider result is recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefundRequest" }
+        "403": { description: Only vendor/admin may decide refunds }
+  /store/tax/quote:
+    post:
+      tags: [tax]
+      summary: Quote tax before checkout, including VIES VAT validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaxQuoteRequest" }
+      responses:
+        "200":
+          description: Tax quote used by checkout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxQuote" }
+  /store/digital-entitlements/{id}/download:
+    get:
+      tags: [entitlements]
+      summary: Resolve a protected time-limited digital download link
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Active entitlement download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url: { type: string, format: uri }
+                  expires_at: { type: string, format: date-time }
+        "403": { description: Entitlement not owned by caller or revoked }
+        "410": { description: Entitlement expired }
+  /store/notifications:
+    get:
+      tags: [notifications]
+      summary: List current caller's notification delivery audit records
+      responses:
+        "200":
+          description: Notification delivery records visible to recipient role
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/NotificationDelivery" }
+  /store/vendor/payout-accounts:
+    get:
+      tags: [vendor]
+      summary: Vendor reads payout setup status per provider
+      responses:
+        "200":
+          description: Vendor payout accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/VendorPayoutAccount" }
+    post:
+      tags: [vendor]
+      summary: Vendor submits or updates payout setup data for a provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorPayoutAccountInput" }
+      responses:
+        "200":
+          description: Payout setup status updated; new wallet applies only to future checkout attempts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorPayoutAccount" }
+components:
+  securitySchemes:
+    directusAuth:
+      type: http
+      scheme: bearer
+    anonCart:
+      type: apiKey
+      in: cookie
+      name: anon_token
+  schemas:
+    AddressInput:
+      type: object
+      required: [country, city, line1, postal_code]
+      properties:
+        country: { type: string, minLength: 2, maxLength: 2 }
+        region: { type: [string, "null"] }
+        city: { type: string }
+        line1: { type: string }
+        line2: { type: [string, "null"] }
+        postal_code: { type: string }
+    TaxProfileInput:
+      type: object
+      properties:
+        jurisdiction: { type: string }
+        vat_number: { type: [string, "null"], description: "Validated through VIES when supplied for EU B2B reverse-charge" }
+        buyer_type: { type: string, enum: [consumer, business], default: consumer }
+    CheckoutRequest:
+      type: object
+      required: [delivery_method, payment_provider]
+      properties:
+        contact_handle: { type: string, description: "Required for guest checkout (FR-027); verified/rate-limited per FR-034" }
+        delivery_method: { type: string, enum: [delivery, pickup] }
+        delivery_address: { $ref: "#/components/schemas/AddressInput" }
+        billing_tax_profile: { $ref: "#/components/schemas/TaxProfileInput" }
+        payment_provider: { type: string, enum: [stripe, ton, shkeeper] }
+    CheckoutGroup:
+      type: object
+      properties:
+        checkout_group_id: { type: string }
+        status: { type: string, enum: [pending, partially_paid, paid, partially_failed, failed, partially_refunded, refunded] }
+        orders:
+          type: array
+          items: { $ref: "#/components/schemas/Order" }
+    BookingRequest:
+      type: object
+      required: [service_id, starts_at, ends_at]
+      properties:
+        service_id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        payment_provider: { type: [string, "null"], enum: [stripe, ton, shkeeper, null], description: "Required only for prepaid services" }
+    BookingTransition:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [confirm, reject, cancel, reschedule] }
+        new_starts_at: { type: string, format: date-time }
+        new_ends_at: { type: string, format: date-time }
+    RefundDecision:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [approve, reject] }
+        approved_amount: { type: [number, "null"] }
+        reason: { type: [string, "null"] }
+    TaxQuoteRequest:
+      type: object
+      required: [items, tax_profile]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id: { type: string }
+              quantity: { type: integer, minimum: 1 }
+        tax_profile: { $ref: "#/components/schemas/TaxProfileInput" }
+    TaxQuote:
+      type: object
+      properties:
+        tax_amount: { type: number }
+        tax_mode: { type: string, enum: [inclusive, exclusive] }
+        reverse_charge: { type: boolean }
+        vies_valid: { type: [boolean, "null"] }
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              line_id: { type: string }
+              jurisdiction: { type: string }
+              amount: { type: number }
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        title: { type: string }
+        type: { type: string, enum: [physical, digital] }
+        price: { type: number }
+        inventory_quantity: { type: integer }
+    Cart:
+      type: object
+      properties:
+        id: { type: string }
+        customer_id: { type: [string, "null"] }
+        contact_handle: { type: [string, "null"] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CartItem" }
+    CartItem:
+      type: object
+      properties:
+        id: { type: string }
+        product_id: { type: string }
+        variant_id: { type: [string, "null"] }
+        tenant_id: { type: string }
+        quantity: { type: integer }
+    CartItemInput:
+      type: object
+      required: [product_id, quantity]
+      properties:
+        product_id: { type: string }
+        variant_id: { type: string }
+        quantity: { type: integer }
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        checkout_group_id: { type: string }
+        total_amount: { type: number }
+        platform_fee_amount: { type: number }
+        tax_amount: { type: number }
+        tax_mode: { type: string, enum: [inclusive, exclusive] }
+        reverse_charge: { type: boolean }
+        status: { type: string }
+        fulfilment_status: { type: string }
+        delivery_address: { $ref: "#/components/schemas/AddressInput" }
+        payment_attempt: { $ref: "#/components/schemas/PaymentAttempt" }
+    PaymentAttempt:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [stripe, ton, shkeeper] }
+        status: { type: string }
+        settlement_currency: { type: string }
+        quoted_rate: { type: [number, "null"] }
+        crypto_amount: { type: [number, "null"] }
+        amount_mismatch_state: { type: string, enum: [ok, underpaid, overpaid, expired] }
+        quote_expires_at: { type: [string, "null"], format: date-time }
+        payout_wallet_snapshot: { type: [string, "null"], description: "Vendor crypto payout destination captured at attempt creation" }
+    Booking:
+      type: object
+      properties:
+        id: { type: string }
+        service_id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        status: { type: string, enum: [pending, confirmed, rejected, cancelled, rescheduled] }
+        payment_attempt_id: { type: [string, "null"] }
+    RefundRequest:
+      type: object
+      properties:
+        id: { type: string }
+        order_id: { type: string }
+        requested_amount: { type: number }
+        approved_amount: { type: [number, "null"] }
+        status: { type: string, enum: [requested, approved, rejected, provider_confirmed, provider_failed] }
+    NotificationDelivery:
+      type: object
+      properties:
+        id: { type: string }
+        event_type: { type: string }
+        recipient_role: { type: string, enum: [customer, vendor, provider, admin] }
+        channel: { type: string, enum: [telegram, email] }
+        status: { type: string }
+        attempt_count: { type: integer }
+        next_retry_at: { type: [string, "null"], format: date-time }
+    VendorPayoutAccount:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [stripe, ton, shkeeper] }
+        status: { type: string, enum: [pending, complete, disabled] }
+        stripe_connect_account_id: { type: [string, "null"] }
+        payout_wallet_address: { type: [string, "null"] }
+        onboarding_completed_at: { type: [string, "null"], format: date-time }
+    VendorPayoutAccountInput:
+      type: object
+      required: [provider]
+      properties:
+        provider: { type: string, enum: [stripe, ton, shkeeper] }
+        payout_wallet_address: { type: [string, "null"] }
