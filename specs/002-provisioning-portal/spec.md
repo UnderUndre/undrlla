@@ -4,6 +4,8 @@
 **Created**: 2026-07-19
 **Status**: Draft
 **Input**: User description: "Self-service provisioning portal to create new Directus instances (site provisioning) and emit a ProvisioningManifest consumable by `undevops` for operator-free provisioning. Minimal scope: create a manifest, validate it, and trigger operator pipeline."
+**Owner**: `platform/undevops`
+**Pilot mode (decision)**: operator-only (recommended for MVP)
 
 ## Summary
 
@@ -15,7 +17,7 @@ Goal: reduce manual operator work and standardize provisioning inputs while pres
 
 ### User Story 1 - Create a new site (Priority: P1)
 
-An authorized operator or customer fills the provisioning form, provides required metadata, requests a site, and receives a `manifest_id` and status. The system validates input and either enqueues a provisioning job or flags for operator review if secret-scoped inputs are required.
+An authorized operator fills the provisioning form, provides required metadata, requests a site, and receives a `manifest_id` and status. For the MVP the portal is operator-only; customer self-service is planned for later phases. The system validates input and either enqueues a provisioning job or flags for operator review if secret-scoped inputs are required.
 
 **Why this priority**: This is the core value: enable provisioning with minimal operator involvement and standardized manifest output.
 
@@ -47,6 +49,8 @@ An authorized operator or customer fills the provisioning form, provides require
 - **FR-007**: System MUST support operator review workflow for manifests flagged `requires_review`.
 - **FR-008**: System MUST provide webhooks or polling endpoints for provisioning status updates.
 
+- **FR-009**: System owner for the MVP is `platform/undevops`.
+
 ### Key Entities
 
 - **ProvisioningManifest**: JSON object with declarative provisioning fields (tenant_id, display_name, domain, region, billing_info_reference, addons, initial_admin_email, initial_content_seed).
@@ -75,6 +79,14 @@ Example (compact):
 Notes:
 - `secrets.*` values MUST be secret references (format `secret:<provider>/<key_env>`), not raw secrets.
 - `billing_reference` is an opaque reference (no card data collected).
+
+## Design Decisions (defaults applied)
+
+- **Primary user (MVP)**: operator-only (pilot). Customer self-service deferred.
+- **Allowed `addons` for MVP**: `payments`, `analytics`, `sample-content`.
+- **`billing_reference` format**: opaque external reference (e.g., `stripe:acct_...`).
+- **Domain provisioning policy**: operator-managed for MVP (no automatic DNS provisioning).
+- **Secrets handling**: accept only `secret:` references; raw secrets rejected.
 
 ## Success Criteria *(mandatory)*
 
@@ -106,10 +118,10 @@ Notes:
 
 ## Checklist (quick)
 
-- [ ] Spec file created in `repos/undrlla/specs/002-provisioning-portal/spec.md`
-- [ ] ProvisioningManifest schema included
-- [ ] Acceptance tests described
-- [ ] Owner assigned
+ - [x] Spec file created in [repos/undrlla/specs/002-provisioning-portal/spec.md](repos/undrlla/specs/002-provisioning-portal/spec.md)
+ - [x] ProvisioningManifest schema included
+ - [x] Acceptance tests described
+ - [x] Owner assigned (`platform/undevops`)
 
 
 ---
