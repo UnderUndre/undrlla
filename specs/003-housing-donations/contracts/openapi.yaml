@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: Housing Donations & Concierge API (Tier-B Extension Delta)
+  version: 1.0.0
+paths:
+  /housing/applications:
+    post:
+      summary: Submit a HousingApplication (FR-004)
+      security:
+        - directusAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [program_id, country, proof_urls, requested_amount]
+              properties:
+                program_id: { type: string }
+                country: { type: string }
+                proof_urls: { type: array, items: { type: string } }
+                target_property_ref: { type: string }
+                requested_amount:
+                  type: number
+                  exclusiveMinimum: 0
+                  description: >
+                    Campaign target for this application. ≤ program self_serve_max_amount
+                    (default 500000 USD) → amount_approval_status=auto_approved;
+                    above cap → pending until admin amount-approval (FR-004, FR-017).
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [submitted] }
+                  requested_amount: { type: number }
+                  amount_approval_status:
+                    type: string
+                    enum: [auto_approved, pending, approved, rejected]
+        "400":
+          description: Country not enabled (country_not_enabled) or validation error
+  /housing/applications/{id}:
+    get:
+      summary: Get application status
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Application status visible to applicant or admin
+  /housing/subscriptions:
+    post:
+      summary: Start housing-pool subscription (custom amount ≥ 1 USD / month) (FR-021)
+      security:
+        - directusAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency]
+              properties:
+                amount: { type: number, minimum: 1 }
+                currency: { type: string, default: USD }
+                pool_id: { type: string }
+      responses:
+        "201":
+          description: Subscription active or pending payment
+  /housing/queue/me:
+    get:
+      summary: Applicant queue position (non-binding) among active applications
+      security:
+        - directusAuth: []
+      responses:
+        "200":
+          description: position, queue_status, queue_entered_at, waiting_for_balance
+  /admin/housing/applications/{id}/amount-approve:
+    post:
+      summary: Admin approve or reject over-cap requested_amount (FR-017)
+      security:
+        - directusAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                reason: { type: string }
+      responses:
+        "200":
+          description: amount_approval_status updated
+        "403":
+          description: Unauthorized
+  /housing/escrows/{id}/release:
+    post:
+      summary: Release held escrow funds to notary/destination (Admin/Notary signal)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Escrow released to snapshotted destination
+        "403":
+          description: KYC not passed or unauthorized

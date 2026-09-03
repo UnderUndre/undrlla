@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://undrlla.network/schemas/002/medusa-provisioning-manifest.schema.json",
+  "title": "MedusaProvisioningManifest",
+  "description": "Canonical undevops ingest payload for client Medusa template-shop provision (ECOSYSTEM Q7/Q8, undevops 003).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "tenant_id",
+    "display_name",
+    "domain",
+    "runtime",
+    "initial_admin_email"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "const": "2.0-medusa"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+    },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "domain": {
+      "type": "string",
+      "description": "FQDN: custom domain or platform subdomain (e.g. acme.undrlla.shop)"
+    },
+    "domain_mode": {
+      "type": "string",
+      "enum": ["platform_subdomain", "byo_custom", "managed_purchase"],
+      "default": "platform_subdomain"
+    },
+    "region": { "type": "string", "default": "eu-central-1" },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "image"],
+      "properties": {
+        "engine": { "type": "string", "const": "medusa" },
+        "image": {
+          "type": "string",
+          "description": "Container image for undreseller template-shop"
+        },
+        "medusa_version": { "type": "string" },
+        "node_env": { "type": "string", "enum": ["production", "staging"], "default": "production" }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postgres": { "type": "boolean", "default": true },
+        "redis": { "type": "boolean", "default": true },
+        "storefront_image": {
+          "type": "string",
+          "description": "undrllanding image for TENANT_MODE=client"
+        }
+      }
+    },
+    "billing_reference": {
+      "type": "string",
+      "description": "Opaque external billing ref, e.g. paddle:sub_... or stripe:acct_..."
+    },
+    "initial_admin_email": { "type": "string", "format": "email" },
+    "addons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["payments_paddle", "payments_stripe", "crypto_shkeeper", "analytics", "sample-content"]
+      },
+      "default": ["payments_paddle", "crypto_shkeeper"]
+    },
+    "list_on_hub": {
+      "type": "boolean",
+      "default": true,
+      "description": "Default true — stream shop into undrlla flagship hub (008 economics)"
+    },
+    "share_catalog_to_hub": {
+      "type": "boolean",
+      "default": true
+    },
+    "hub_category_tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "hub_short_description": { "type": "string", "maxLength": 280 },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^secret:[A-Za-z0-9_./-]+$"
+      },
+      "description": "Only secret:<provider>/<key> refs — never raw secrets"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Non-secret env overrides (MEDUSA_BACKEND public URL shape, FEATURES=shop, TENANT_MODE=client)"
+    }
+  }
+}

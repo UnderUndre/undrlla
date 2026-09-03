@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info:
+  title: Provisioning Portal API
+  version: 1.0.0
+paths:
+  /provisioning/manifests:
+    post:
+      summary: Submit a ProvisioningManifest for site deployment
+      security:
+        - directusAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifest_version, tenant_id, display_name, domain, region, initial_admin_email]
+              properties:
+                manifest_version: { type: string }
+                tenant_id: { type: string }
+                display_name: { type: string }
+                domain: { type: string }
+                region: { type: string }
+                billing_reference: { type: string }
+                initial_admin_email: { type: string }
+                addons: { type: array, items: { type: string } }
+                secrets: { type: object, additionalProperties: { type: string } }
+      responses:
+        "202":
+          description: Manifest accepted and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  manifest_id: { type: string }
+                  status: { type: string, enum: [queued, requires_review, invalid] }
+        "400":
+          description: Validation error or raw secret rejected
+        "409":
+          description: Domain collision lock conflict

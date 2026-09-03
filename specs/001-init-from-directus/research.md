@@ -54,15 +54,21 @@ Brief record of the key architectural decisions taken for the Tier-A rebase, wit
 
 **Contract boundary**: `contracts/openapi.yaml` is authoritative for client-visible `/store/*` workflows (catalog, cart, checkout status, booking transitions, refunds, tax quote, digital entitlement download, notifications, vendor payout setup). Directus generated REST/GraphQL remains authoritative for admin/internal collection CRUD and is validated separately by contract tests.
 
-## D7 — Crypto settlement model for TON / SHKeeper
+## D7 — Crypto settlement model for TON / SHKeeper & Compliance Framework
 
-**Decision**: v1 uses **collect-and-forward** for TON and SHKeeper. Customer crypto payments land in a per-instance platform-controlled settlement wallet. During reconciliation, the platform retains `Order.platform_fee_amount` and queues the vendor payout to the vendor's configured payout wallet.
+**Decision**: v1 supports both **collect-and-forward** (default for licensed operators) and **direct-to-vendor** settlement for TON and SHKeeper. The settlement mode is configured per instance via `PaymentAttempt.settlement_model` (`stripe_connect_application_fee` | `crypto_collect_and_forward` | `direct_to_vendor`).
 
-**Rationale**: Direct-to-vendor is simpler at checkout but makes platform-fee capture, partial refunds, under/overpayment handling, and audit reconciliation brittle. Collect-and-forward centralizes the crypto state machine already required by FR-032 and lets refunds draw from the same settlement source.
+**Compliance & Regulatory Note**:
+Holding customer crypto funds under collect-and-forward constitutes money transmission and custody under US FinCEN (MSB registration) and EU MiCA (CASP licensing). Deployments operating without an active custodial license MUST set `settlement_model = direct_to_vendor` during instance provisioning (FR-025/FR-035).
+
+**Settlement Mechanics**:
+- Under `crypto_collect_and_forward`: Customer payments land in a per-instance platform-controlled settlement wallet. During reconciliation, the platform retains `Order.platform_fee_amount` and queues the vendor payout to the vendor's snapshotted payout wallet.
+- Under `direct_to_vendor`: Customer payments land directly in the vendor's snapshotted wallet; platform fees are billed post-settlement or recorded as a vendor account debit.
 
 **Operational rule**: the vendor payout wallet is snapshotted on `PaymentAttempt` at creation. If the vendor changes their wallet later, existing orders/refunds keep the original snapshot; only new payment attempts use the new wallet.
 
-**Alternative rejected**: direct-to-vendor wallet with separate fee invoice. Rejected for v1 because missed fee settlement and refund reversals would become manual operational debt.
+**Customer Payment Instructions**:
+Every `PaymentAttempt` returns a structured `payment_instructions` object containing the deposit address, exact crypto amount, quote expiration, and memo/tag so clients can complete checkouts reliably.
 
 ## D8 — Partial multi-vendor checkout semantics
 

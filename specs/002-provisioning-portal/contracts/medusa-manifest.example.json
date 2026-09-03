@@ -1,0 +1,38 @@
+{
+  "manifest_version": "2.0-medusa",
+  "tenant_id": "acme-tenant-001",
+  "display_name": "Acme Store",
+  "domain": "acme.undrlla.shop",
+  "domain_mode": "platform_subdomain",
+  "region": "eu-central-1",
+  "runtime": {
+    "engine": "medusa",
+    "image": "ghcr.io/underundre/undreseller-template-shop:latest",
+    "medusa_version": "2.x",
+    "node_env": "production"
+  },
+  "services": {
+    "postgres": true,
+    "redis": true,
+    "storefront_image": "ghcr.io/underundre/undrllanding:latest"
+  },
+  "billing_reference": "paddle:sub_01example",
+  "initial_admin_email": "admin@acme.example",
+  "addons": ["payments_paddle", "crypto_shkeeper", "sample-content"],
+  "list_on_hub": true,
+  "share_catalog_to_hub": true,
+  "hub_category_tags": ["fashion", "eu"],
+  "hub_short_description": "Acme streetwear storefront",
+  "secrets": {
+    "paddle_api_key_ref": "secret:paddle/api_key",
+    "paddle_webhook_secret_ref": "secret:paddle/webhook_secret",
+    "medusa_jwt_secret_ref": "secret:medusa/jwt_secret",
+    "postgres_password_ref": "secret:postgres/password",
+    "shkeeper_api_key_ref": "secret:shkeeper/api_key"
+  },
+  "env": {
+    "TENANT_MODE": "client",
+    "FEATURES": "shop",
+    "NEXT_PUBLIC_PADDLE_ENV": "live"
+  }
+}

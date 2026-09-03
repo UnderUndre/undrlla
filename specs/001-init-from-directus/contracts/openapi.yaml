@@ -30,6 +30,7 @@ paths:
     get:
       tags: [catalog]
       summary: Browse catalog (public read, FLS-stripped)
+      security: []
       parameters:
         - { name: limit, in: query, schema: { type: integer, default: 25 } }
         - { name: filter, in: query, schema: { type: string } }
@@ -47,6 +48,8 @@ paths:
   /items/products/{id}:
     get:
       tags: [catalog]
+      summary: Read single product (public read)
+      security: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -88,9 +91,11 @@ paths:
       tags: [checkout]
       summary: Split multi-vendor cart into one Order + PaymentAttempt per vendor (FR-024)
       description: >
-        Checkout is per-vendor atomic after fan-out. If one vendor order fails payment,
-        expires, or is refunded, successful sibling orders in the same checkout_group_id
+        Checkout is per-vendor atomic after fan-out. Requires Idempotency-Key header to prevent duplicate checkouts.
+        If one vendor order fails payment, expires, or is refunded, successful sibling orders in the same checkout_group_id
         remain committed and the failed vendor's inventory reservation is released.
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string }, description: "Deduplication key for checkout idempotency" }
       requestBody:
         required: true
         content:
@@ -109,6 +114,7 @@ paths:
       summary: Read mixed checkout-group status across vendor orders
       parameters:
         - { name: checkout_group_id, in: path, required: true, schema: { type: string } }
+        - { name: checkout_secret, in: query, required: false, schema: { type: string }, description: "Non-enumerable secret issued at checkout for guest order reads" }
       responses:
         "200":
           description: Checkout group status visible to the owning customer or guest token
@@ -427,6 +433,17 @@ components:
         amount_mismatch_state: { type: string, enum: [ok, underpaid, overpaid, expired] }
         quote_expires_at: { type: [string, "null"], format: date-time }
         payout_wallet_snapshot: { type: [string, "null"], description: "Vendor crypto payout destination captured at attempt creation" }
+        payment_instructions:
+          type: [object, "null"]
+          description: "Customer-facing payment instructions (Stripe client_secret/url or crypto deposit address, exact amount, memo, quote expiry)"
+          properties:
+            payment_url: { type: [string, "null"] }
+            client_secret: { type: [string, "null"] }
+            deposit_address: { type: [string, "null"] }
+            crypto_currency: { type: [string, "null"] }
+            crypto_amount_exact: { type: [string, "null"] }
+            memo_tag: { type: [string, "null"] }
+            quote_expires_at: { type: [string, "null"], format: date-time }
     Booking:
       type: object
       properties:

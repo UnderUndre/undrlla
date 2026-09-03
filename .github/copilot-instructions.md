@@ -2,9 +2,9 @@
 
 # Claude Instructions
 
-> **Role**: Senior Autonomous Coder
-> **Repo**: `clai-helpers` CLI + curated `.claude/` template (transpiles to Copilot/Gemini).
-> **Project overview**: [`specs/main/architecture.md`](specs/main/architecture.md) + [`specs/main/requirements.md`](specs/main/requirements.md)
+> **Role**: Senior Autonomous Coder **Repo**: `clai-helpers` CLI + curated `.claude/` template (transpiles to
+> Copilot/Gemini). **Project overview**: [`specs/main/architecture.md`](specs/main/architecture.md) +
+> [`specs/main/requirements.md`](specs/main/requirements.md)
 
 <!-- HELPERS:REF ".github/instructions/persona/copilot-instructions.md" -->
 <!-- HELPERS:REF ".github/instructions/coding/copilot-instructions.md" -->
@@ -13,7 +13,10 @@
 
 ## Session Logging (Advisory)
 
-After a substantial output (analysis, report, spec section, plan, audit, decision), write a brief summary to `.ai/dialogs/log/<date>-<tool>-<theme>.md`: what was done, key decisions/trade-offs, final artifacts (paths/branches/links), follow-ups flagged. Feeds audit, cross-tool reading, and `/learn`. **Claude Code**: transcripts captured by `.claude/hooks/` (future). **Other tools**: this rule is your capture mechanism — advisory, not enforced.
+After a substantial output (analysis, report, spec section, plan, audit, decision), write a brief summary to
+`.ai/dialogs/log/<date>-<tool>-<theme>.md`: what was done, key decisions/trade-offs, final artifacts
+(paths/branches/links), follow-ups flagged. Feeds audit, cross-tool reading, and `/learn`. **Claude Code**: transcripts
+captured by `.claude/hooks/` (future). **Other tools**: this rule is your capture mechanism — advisory, not enforced.
 
 ---
 
@@ -33,45 +36,60 @@ After a substantial output (analysis, report, spec section, plan, audit, decisio
 
 ## Agent Routing
 
-**Before starting ANY task, identify the domain and activate the right agent.** Read the agent file `.claude/agents/<name>.md` → load skills from its `skills:` frontmatter → follow its workflow.
+**Before starting ANY task, identify the domain and activate the right agent.** Read the agent file
+`.claude/agents/<name>.md` → load skills from its `skills:` frontmatter → follow its workflow.
 
-Domain → agent: frontend → `frontend-specialist` · backend/API/auth → `backend-specialist` · database/migrations → `database-architect` · deploy/CI·CD/release → `devops-engineer` · security/audit → `security-auditor` · pentest → `penetration-tester` · performance → `performance-optimizer` · debugging/RCA → `debugger` · testing → `test-engineer` · SEO/GEO → `seo-specialist` · docs → `documentation-writer` · multi-agent coordination → `orchestrator` · initial audit/discovery → `explorer-agent` · planning (no code) → `project-planner` · brainstorm → `brainstorm`.
+Domain → agent: frontend → `frontend-specialist` · backend/API/auth → `backend-specialist` · database/migrations →
+`database-architect` · deploy/CI·CD/release → `devops-engineer` · security/audit → `security-auditor` · pentest →
+`penetration-tester` · performance → `performance-optimizer` · debugging/RCA → `debugger` · testing → `test-engineer` ·
+SEO/GEO → `seo-specialist` · docs → `documentation-writer` · multi-agent coordination → `orchestrator` · initial
+audit/discovery → `explorer-agent` · planning (no code) → `project-planner` · brainstorm → `brainstorm`.
 
-Full table (key skills + cross-domain escalation): [`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) §9. Config priority: `.claude/` (source of truth) > `.agent/` (read-only mirror).
+Full table (key skills + cross-domain escalation):
+[`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) §9. Config
+priority: `.claude/` (source of truth) > `.agent/` (read-only mirror).
 
-- On session start, call the MCP tool `knowledge_profile_get` scoped to the current project and read the skill `.claude/skills/knowledge-adaptation/SKILL.md` to adapt explanation depth and style based on the user's knowledge profile.
+- On session start, call the MCP tool `knowledge_profile_get` scoped to the current project and read the skill
+  `.claude/skills/knowledge-adaptation/SKILL.md` to adapt explanation depth and style based on the user's knowledge
+  profile.
 
-**Context firewall**: run context-heavy work (codebase crawls, wide grep/glob, audits, long logs/diffs) as a **spawned subagent** — only the distilled result returns to the main session. Rules in §Context Management → Subagent-first.
+**Context firewall**: run context-heavy work (codebase crawls, wide grep/glob, audits, long logs/diffs) as a **spawned
+subagent** — only the distilled result returns to the main session. Rules in §Context Management → Subagent-first.
 
 ---
 
 ## Intent Routing
 
-**Map user utterances → first action.** Prefer the prescribed command over improvising; if unsure → `/dispatch <request>`. Don't double-route (typing `/fix-ci` directly IS the dispatch).
+**Map user utterances → first action.** Prefer the prescribed command over improvising; if unsure →
+`/dispatch <request>`. Don't double-route (typing `/fix-ci` directly IS the dispatch).
 
-| User says (RU/EN) | First action |
-| --- | --- |
-| "brainstorm X", "обкашляю X" | `/brainstorm X` |
-| "find holes", "найди дыры", "devil's advocate" | `/questions_ideas` |
-| "fix bug", "не работает", "сломалось" | spawn `debugger` + `systematic-debugging` |
-| "implement X" (>3 files OR new domain) | `/speckit.start → .full-spec → .full-plan → .implement` |
-| "implement X" (≤3 files, in-domain) | identify domain → spawn agent → Plumber's Loop |
-| "review", "code review", "ревью" | spawn `code-reviewer` OR `/code_review` |
-| "tests failing", "тесты упали" | `/fix-tests` |
-| "CI failing", "CI упал" | `/fix-ci` |
-| "TS errors", "тайпы сломаны" | `/fix-types` |
-| "merge conflicts", "конфликты" | `/resolve-conflicts` |
-| "ship", "release", "релиз" | `/bump` → confirm → publish |
-| "verify", "проверь всё" | `/verify` |
-| "session-end", "запомни" | `/improve` (manual) OR Stop hook |
+| User says (RU/EN)                              | First action                                            |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| "brainstorm X", "обкашляю X"                   | `/brainstorm X`                                         |
+| "find holes", "найди дыры", "devil's advocate" | `/questions_ideas`                                      |
+| "fix bug", "не работает", "сломалось"          | spawn `debugger` + `systematic-debugging`               |
+| "implement X" (>3 files OR new domain)         | `/speckit.start → .full-spec → .full-plan → .implement` |
+| "implement X" (≤3 files, in-domain)            | identify domain → spawn agent → Plumber's Loop          |
+| "review", "code review", "ревью"               | spawn `code-reviewer` OR `/code_review`                 |
+| "tests failing", "тесты упали"                 | `/fix-tests`                                            |
+| "CI failing", "CI упал"                        | `/fix-ci`                                               |
+| "TS errors", "тайпы сломаны"                   | `/fix-types`                                            |
+| "merge conflicts", "конфликты"                 | `/resolve-conflicts`                                    |
+| "ship", "release", "релиз"                     | `/bump` → confirm → publish                             |
+| "verify", "проверь всё"                        | `/verify`                                               |
+| "session-end", "запомни"                       | `/improve` (manual) OR Stop hook                        |
 
-Two principles: (1) **don't improvise when a command exists** — the command's prompt is the source of truth; (2) **don't double-route**. Full mapping + examples: [`.github/prompts/dispatch.prompt.md`](.github/prompts/dispatch.prompt.md).
+Two principles: (1) **don't improvise when a command exists** — the command's prompt is the source of truth; (2) **don't
+double-route**. Full mapping + examples: [`.github/prompts/dispatch.prompt.md`](.github/prompts/dispatch.prompt.md).
 
 ---
 
 ## AI-Generated Code Guardrails
 
-TS-грабли (universal + [web]) и 45 prompt/workflow анти-паттернов вынесены в скилл [`ai-engineering-hygiene`](.claude/skills/ai-engineering-hygiene/SKILL.md) — грузится по требованию при кодинге/ревью. **Перед написанием или ревью кода — свериться.** Полный TS-каталог с production-инцидентами: [`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) §14.
+TS-грабли (universal + [web]) и 45 prompt/workflow анти-паттернов вынесены в скилл
+[`ai-engineering-hygiene`](.claude/skills/ai-engineering-hygiene/SKILL.md) — грузится по требованию при кодинге/ревью.
+**Перед написанием или ревью кода — свериться.** Полный TS-каталог с production-инцидентами:
+[`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) §14.
 
 ---
 
@@ -97,7 +115,7 @@ npm run dev           # tsc --watch
 # Edit source of truth: .claude/commands/*.md, .claude/agents/*.md, .claude/skills/<name>/SKILL.md, CLAUDE.md
 npx clai-helpers sync                              # transpile to Copilot + Gemini
 npx clai-helpers status --strict                  # check drift (CI-friendly, exit 2 if mismatch)
-npx clai-helpers init --source github:UnderUndre/ai  # fresh install in consumer repo
+npx clai-helpers init --source github:UnderUndre/underoute-clai  # fresh install in consumer repo
 ```
 
 ### Release (CLI versioning)
@@ -110,53 +128,70 @@ git push --follow-tags
 cd packages/cli && npm publish
 ```
 
-See [`.claude/skills/semver-versioning/SKILL.md`](.claude/skills/semver-versioning/SKILL.md) for the bump decision framework.
+See [`.claude/skills/semver-versioning/SKILL.md`](.claude/skills/semver-versioning/SKILL.md) for the bump decision
+framework.
 
 ### SpecKit (feature development pipeline)
 
-Полный список команд — `.claude/commands/speckit.*`. Канон: `/speckit.specify → .clarify → .plan → .tasks → .analyze → .review` (×2 внешних ревьюера) `→ .implement`. Combo: `.full-spec`, `.full-plan`. Инспекция: `.status`, `.diff`, `.scope`, `.retrospective`.
+Полный список команд — `.claude/commands/speckit.*`. Канон:
+`/speckit.specify → .clarify → .plan → .tasks → .analyze → .review` (×2 внешних ревьюера) `→ .implement`. Combo:
+`.full-spec`, `.full-plan`. Инспекция: `.status`, `.diff`, `.scope`, `.retrospective`.
 
-**Constitution gates** (`.specify/memory/constitution.md` v1.5.0): **Principle VI** (Cross-AI Review, NON-NEGOTIABLE) — `/speckit.implement` blocks until `analyze.md` PASS + ≥2 external reviewer PASS; override `--override-gate "<reason>"` (logged). **Principle VII** (Artifact Versioning) — every stage tags `<stage>/<slug>/v<N>`; git is the history, no `.history/` files.
+**Constitution gates** (`.specify/memory/constitution.md` v1.5.0): **Principle VI** (Cross-AI Review, NON-NEGOTIABLE) —
+`/speckit.implement` blocks until `analyze.md` PASS + ≥2 external reviewer PASS; override `--override-gate "<reason>"`
+(logged). **Principle VII** (Artifact Versioning) — every stage tags `<stage>/<slug>/v<N>`; git is the history, no
+`.history/` files.
 
-**Verification**: after code change → `npm run validate` in `packages/cli/`; after a feature → run tests. Don't report "done" until verification passes.
+**Verification**: after code change → `npm run validate` in `packages/cli/`; after a feature → run tests. Don't report
+"done" until verification passes.
 
 ---
 
 ## Project Reference (read on demand)
 
-| Domain                 | File                                                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Architecture**       | [`specs/main/architecture.md`](specs/main/architecture.md) — topography, source-of-truth tree, data flow                       |
-| **Requirements**       | [`specs/main/requirements.md`](specs/main/requirements.md) — functional + non-functional + repo rules                          |
-| **Coding Standards**   | [`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) (v2.0.0)          |
-| **Commit Conventions** | [`.github/instructions/coding/git/copilot-instructions.md`](.github/instructions/coding/git/copilot-instructions.md)           |
-| **Persona (base)**     | [`.github/instructions/persona/copilot-instructions.md`](.github/instructions/persona/copilot-instructions.md)                 |
-| **Persona phrases**    | [`.github/instructions/persona/phrases/copilot-instructions.md`](.github/instructions/persona/phrases/copilot-instructions.md) |
-| **Release / SemVer**   | [`.claude/skills/semver-versioning/SKILL.md`](.claude/skills/semver-versioning/SKILL.md)                                       |
+| Domain                 | File                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture**       | [`specs/main/architecture.md`](specs/main/architecture.md) — topography, source-of-truth tree, data flow                            |
+| **Requirements**       | [`specs/main/requirements.md`](specs/main/requirements.md) — functional + non-functional + repo rules                               |
+| **Coding Standards**   | [`.github/instructions/coding/copilot-instructions.md`](.github/instructions/coding/copilot-instructions.md) (v2.0.0)               |
+| **Commit Conventions** | [`.github/instructions/coding/git/copilot-instructions.md`](.github/instructions/coding/git/copilot-instructions.md)                |
+| **Persona (base)**     | [`.github/instructions/persona/copilot-instructions.md`](.github/instructions/persona/copilot-instructions.md)                      |
+| **Persona phrases**    | [`.github/instructions/persona/phrases/copilot-instructions.md`](.github/instructions/persona/phrases/copilot-instructions.md)      |
+| **Release / SemVer**   | [`.claude/skills/semver-versioning/SKILL.md`](.claude/skills/semver-versioning/SKILL.md)                                            |
 | **Code hygiene**       | [`.claude/skills/ai-engineering-hygiene/SKILL.md`](.claude/skills/ai-engineering-hygiene/SKILL.md) — codegen + prompt anti-patterns |
-| **README (EN)**        | [`README.md`](README.md) · **RU**: [`README.ru.md`](README.ru.md)                                                              |
-| **Contributing**       | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                                           |
-| **CLI package docs**   | [`packages/cli/README.md`](packages/cli/README.md)                                                                             |
-| **Feature specs**      | `specs/<feature-slug>/spec.md`, `plan.md`, `tasks.md`                                                                          |
-| **Constitution**       | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (v1.5.0) — governance principles only                     |
+| **README (EN)**        | [`README.md`](README.md) · **RU**: [`README.ru.md`](README.ru.md)                                                                   |
+| **Contributing**       | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                                                |
+| **CLI package docs**   | [`packages/cli/README.md`](packages/cli/README.md)                                                                                  |
+| **Feature specs**      | `specs/<feature-slug>/spec.md`, `plan.md`, `tasks.md`                                                                               |
+| **Constitution**       | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (v1.5.0) — governance principles only                          |
 
 ---
 
 ## Ultrathink Convention
 
-Files under `.claude/commands/`, `.claude/agents/`, `.claude/skills/*/SKILL.md` that require deep reasoning carry an `ultrathink` marker on its own line near the top (after the first heading or `## Outline`). This auto-engages maximum thinking budget when the file is loaded.
+Files under `.claude/commands/`, `.claude/agents/`, `.claude/skills/*/SKILL.md` that require deep reasoning carry an
+`ultrathink` marker on its own line near the top (after the first heading or `## Outline`). This auto-engages maximum
+thinking budget when the file is loaded.
 
-**Do not strip `ultrathink` markers**. ~45 files use them. Trivial / operational files (commit, status, deploy, list, preview) intentionally don't have them.
+**Do not strip `ultrathink` markers**. ~45 files use them. Trivial / operational files (commit, status, deploy, list,
+preview) intentionally don't have them.
 
 ---
 
 ## Context Management
 
 - **Правило 50%**: `/compact` когда контекст > 50%. `/clear` при переключении на новую задачу.
-- **Subagent-first (экономия главного контекста)**: шаг потребует затащить в сессию заметный объём сырья (краулинг кода, широкий grep/glob по дереву, аудит, длинные логи/доки/diff'ы), а дословно это сырьё дальше не нужно → **спавнь сабагента**, в главный контекст возвращается только выжимка.
-  - Claude Code: Task tool — `explorer-agent`/Explore для read-only разведки, доменный агент из Agent Routing для работы; результат = краткий отчёт, не дамп файлов.
-  - Тулы без сабагентов (Gemini/Copilot/Codex): отдельная сессия/чат под разведку, в рабочую сессию переносится только вывод.
-  - **Анти-правила**: однофайловый Read / точечный Grep — делай сам, спавн дороже выгоды; не плоди сабагентов ради сабагентов — каждый стартует холодным, без твоего контекста; результат сабагента без файлов-пруфов (`path:line`) — не результат, требуй ссылки.
+- **Subagent-first (экономия главного контекста)**: шаг потребует затащить в сессию заметный объём сырья (краулинг кода,
+  широкий grep/glob по дереву, аудит, длинные логи/доки/diff'ы), а дословно это сырьё дальше не нужно → **спавнь
+  сабагента**, в главный контекст возвращается только выжимка.
+  - Claude Code: Task tool — `explorer-agent`/Explore для read-only разведки, доменный агент из Agent Routing для
+    работы; результат = краткий отчёт, не дамп файлов.
+  - Тулы без сабагентов (Gemini/Copilot/Codex): отдельная сессия/чат под разведку, в рабочую сессию переносится только
+    вывод.
+  - **Анти-правила**: однофайловый Read / точечный Grep — делай сам, спавн дороже выгоды; не плоди сабагентов ради
+    сабагентов — каждый стартует холодным, без твоего контекста; результат сабагента без файлов-пруфов (`path:line`) —
+    не результат, требуй ссылки.
 - **`/rename` + `/resume`**: Переименуй сессию перед очисткой, чтобы вернуться позже.
 - **Параллельные сессии**: Writer/Reviewer паттерн — один Claude пишет, другой ревьюит.
-- **Memory**: persistent memory lives under `C:\Users\[username]\.claude\projects\...\memory\`. See session-start hook output for index. Use sparingly, avoid ephemeral task state.
+- **Memory**: persistent memory lives under `C:\Users\[username]\.claude\projects\...\memory\`. See session-start hook
+  output for index. Use sparingly, avoid ephemeral task state.

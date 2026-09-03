@@ -60,7 +60,7 @@ This is the metadata-driven core data model for the Tier-A marketplace engine. C
 
 ### Order  *(single-vendor — FR-024)*
 
-`id`, **`tenant_id`**, `checkout_group_id`, `customer_id` (nullable for guest), `customer_contact`, `total_amount`, `platform_fee_amount`, `tax_amount`, `tax_mode` (`inclusive`|`exclusive`), `reverse_charge`, `status`, `payment_method`, `fulfilment_status`, `tracking_number`, `delivery_method` (`delivery`|`pickup`), structured `delivery_address` (`country`, `region`, `city`, `line1`, `line2`, `postal_code`), `shipping_amount`, `delivery_zone_id` (M2O). O2M → OrderItem. A checkout group may hold mixed statuses; each order remains independently paid/failed/refunded.
+`id`, **`tenant_id`**, `checkout_group_id`, `checkout_secret` (high-entropy guest read token, FR-034), `customer_id` (nullable for guest), `customer_contact`, `total_amount`, `platform_fee_amount`, `tax_amount`, `tax_mode` (`inclusive`|`exclusive`), `reverse_charge`, `status`, `payment_method`, `fulfilment_status`, `tracking_number`, `delivery_method` (`delivery`|`pickup`), structured `delivery_address` (`country`, `region`, `city`, `line1`, `line2`, `postal_code`), `shipping_amount`, `delivery_zone_id` (M2O). O2M → OrderItem. A checkout group may hold mixed statuses; each order remains independently paid/failed/refunded.
 
 ### OrderItem
 
@@ -68,15 +68,15 @@ This is the metadata-driven core data model for the Tier-A marketplace engine. C
 
 ### OrderSplit  *(fan-out — FR-024/FR-031)*
 
-`id`, `checkout_group_id`, `tenant_id`, `order_id` (M2O), `payment_attempt_id` (M2O), `platform_fee_amount`, `status` (`pending`|`paid`|`failed`|`refunded`). One row per vendor in a multi-vendor checkout; vendor-filtered by `tenant_id`. The customer-facing checkout group derives aggregate mixed states (`partially_paid`, `partially_failed`, `partially_refunded`) from these rows.
+`id`, `checkout_group_id`, `checkout_secret`, `tenant_id`, `order_id` (M2O), `payment_attempt_id` (M2O), `platform_fee_amount`, `status` (`pending`|`paid`|`failed`|`refunded`). One row per vendor in a multi-vendor checkout; vendor-filtered by `tenant_id`. The customer-facing checkout group derives aggregate mixed states (`partially_paid`, `partially_failed`, `partially_refunded`) from these rows.
 
 ### PaymentAttempt  *(provider-agnostic — FR-013/FR-032)*
 
-`id`, `order_id`, `provider` (`stripe`|`ton`|`shkeeper`), `status`, `settlement_currency`, `quoted_rate`, `crypto_amount`, `received_amount`, `amount_mismatch_state` (`ok`|`underpaid`|`overpaid`|`expired`), `quote_expires_at`, `idempotency_key`, `provider_payment_id`, `provider_event_id`, `refund_amount`, `settlement_model` (`stripe_connect_application_fee`|`crypto_collect_and_forward`), `payout_wallet_snapshot`. For TON/SHKeeper v1, `payout_wallet_snapshot` freezes the vendor destination at attempt creation; later wallet changes affect only future attempts.
+`id`, `order_id`, `provider` (`stripe`|`ton`|`shkeeper`), `status`, `settlement_currency`, `quoted_rate`, `crypto_amount`, `received_amount`, `amount_mismatch_state` (`ok`|`underpaid`|`overpaid`|`expired`), `quote_expires_at`, `idempotency_key`, `provider_payment_id`, `provider_event_id`, `refund_amount`, `settlement_model` (`stripe_connect_application_fee`|`crypto_collect_and_forward`|`direct_to_vendor`), `payout_wallet_snapshot`, `payment_instructions` (structured object returning customer deposit address, exact amount, memo, quote expiry). For TON/SHKeeper v1, `payout_wallet_snapshot` freezes the vendor destination at attempt creation; later wallet changes affect only future attempts.
 
 ### RefundRequest  *(FR-020)*
 
-`id`, `order_id`, `payment_attempt_id`, `requested_amount`, `approved_amount`, `status` (`requested`|`approved`|`rejected`|`provider_confirmed`|`provider_failed`), `reason`, `approved_by`. `approved_amount ≤ captured`; only `provider_confirmed` mutates payment/order state.
+`id`, `order_id`, `payment_attempt_id`, `initiator` (`customer`|`system`), `requested_amount`, `approved_amount`, `status` (`requested`|`approved`|`rejected`|`provider_confirmed`|`provider_failed`), `reason`, `approved_by` (nullable for system auto-refunds). `approved_amount ≤ captured`; only `provider_confirmed` mutates payment/order state. System auto-refunds (booking rejection, overpayment reconciliation) set `initiator=system` and bypass manual vendor approval.
 
 ### InventoryReservation  *(FR-018)*
 
